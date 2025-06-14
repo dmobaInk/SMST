@@ -22,13 +22,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -46,6 +49,10 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.jaffar.smst.R
 import com.jaffar.smst.viewmodel.SmsViewModel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 
 @Composable
@@ -62,6 +69,9 @@ fun Home(onNavigate: (String) -> Unit, smsViewModel: SmsViewModel) {
     ) { isGranted ->
         hasPermission = isGranted
     }
+
+    var showAuthDialog by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf("") }
 
     Column(
         modifier = Modifier
@@ -189,11 +199,21 @@ fun Home(onNavigate: (String) -> Unit, smsViewModel: SmsViewModel) {
 
         Button(
             onClick = {
-                if (!hasPermission) {
-                    requestPermissionLauncher.launch(Manifest.permission.SEND_SMS)
-                } else {
-                    smsViewModel.startSending(context)
+                CoroutineScope(Dispatchers.IO).launch {
+                    val verified = smsViewModel.verifyAuthCode()
+                    withContext(Dispatchers.Main) {
+                        if (verified){
+                            if (!hasPermission) {
+                                requestPermissionLauncher.launch(Manifest.permission.SEND_SMS)
+                            } else {
+                                smsViewModel.startSending(context)
+                            }
+                        }else{
+                            showAuthDialog = true
+                        }
+                    }
                 }
+
             },
             modifier = Modifier
                 .fillMaxWidth()
@@ -210,6 +230,49 @@ fun Home(onNavigate: (String) -> Unit, smsViewModel: SmsViewModel) {
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(text = "发送中 ${(smsViewModel.progress * 100).toInt()}%")
+        }
+
+
+        if (showAuthDialog) {
+            AlertDialog(
+                onDismissRequest = { showAuthDialog = false },
+                title = { Text("请输入授权码") },
+                text = {
+                    Column {
+                        OutlinedTextField(
+                            value = smsViewModel.authCode,
+                            onValueChange = { smsViewModel.saveAuthCode(it) },
+                            label = { Text("授权码") }
+                        )
+                        if (errorMessage.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(errorMessage, color = Color.Red)
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        CoroutineScope(Dispatchers.IO).launch {
+                            val verified = smsViewModel.verifyAuthCode()
+                            if (verified) {
+                                showAuthDialog = false
+                                errorMessage = ""
+                            } else {
+                                CoroutineScope(Dispatchers.Main).launch {
+                                    errorMessage = "授权码无效"
+                                }
+                            }
+                        }
+                    }) {
+                        Text("确认")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showAuthDialog = false }) {
+                        Text("取消")
+                    }
+                }
+            )
         }
     }
 }

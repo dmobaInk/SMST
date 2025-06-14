@@ -2,6 +2,7 @@ package com.jaffar.smst.viewmodel
 
 import android.app.Application
 import android.content.Context
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -11,9 +12,14 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.alibaba.fastjson.JSONObject
 import com.jaffar.smst.dataStore.DataStoreManager
 import com.jaffar.smst.sms.sendSmsSequentially
 import kotlinx.coroutines.launch
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 
 class SmsViewModel(application: Application): AndroidViewModel(application) {
 
@@ -24,6 +30,8 @@ class SmsViewModel(application: Application): AndroidViewModel(application) {
     var numbers = mutableStateListOf<String>()
         private set
     var messages = mutableStateListOf<String>()
+        private set
+    var authCode by mutableStateOf("")
         private set
 
     fun startSending(context: Context) {
@@ -93,6 +101,61 @@ class SmsViewModel(application: Application): AndroidViewModel(application) {
             val saved = DataStoreManager.loadMessages(getApplication())
             messages.clear()
             messages.addAll(saved)
+        }
+    }
+
+    fun saveAuthCode(code: String){
+        authCode = code
+        saveAuthCode2Storage()
+    }
+
+    private fun saveAuthCode2Storage(){
+        viewModelScope.launch {
+            DataStoreManager.saveAuthCode(getApplication(), authCode)
+        }
+    }
+
+    fun loadAuthCodeFromStorage(){
+        viewModelScope.launch {
+            val saved = DataStoreManager.loadAuthCode(getApplication())
+            authCode = saved
+        }
+    }
+
+    fun verifyAuthCode(): Boolean{
+        return try{
+            if (authCode.isEmpty()){
+                false
+            }
+            val client = OkHttpClient()
+            val json = JSONObject()
+            json.put("code", authCode)
+            val jsonStr = json.toString()
+
+            val mediaType = "application/json; charset=utf-8".toMediaType()
+            val body = jsonStr.toRequestBody(mediaType)
+
+            val request = Request.Builder()
+                .url("http://47.237.156.20/auth/v")
+                .post(body)
+                .build()
+
+            Log.i("TAG", "verifyAuthCode: $jsonStr}")
+
+            val response = client.newCall(request).execute()
+
+            if (response.isSuccessful){
+                val responseBody = response.body?.string()
+                Log.i("TAG", "verifyAuthCode: $responseBody")
+                val result = JSONObject.parseObject(responseBody ?: "{}")
+                result.getBooleanValue("success")
+            }else{
+                Log.i("request", "verifyAuthCode: ${response.code}")
+                false
+            }
+        }catch (e: Exception){
+            Log.e("request", "verifyAuthCode: ", e)
+            false
         }
     }
 

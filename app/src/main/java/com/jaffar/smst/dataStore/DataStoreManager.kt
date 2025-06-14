@@ -14,6 +14,7 @@ object DataStoreManager {
 
     private val KEY_NUMBERS = stringPreferencesKey("phone_numbers")
     private val KEY_MESSAGES = stringPreferencesKey("messages")
+    private val KEY_AUTH_CODE = stringPreferencesKey("auth_code")
 
     suspend fun saveNumbers(context: Context, numbers: List<String>) {
         context.dataStore.edit { prefs ->
@@ -35,6 +36,17 @@ object DataStoreManager {
     suspend fun loadMessages(context: Context): List<String> {
         val prefs = context.dataStore.data.first()
         return prefs[KEY_MESSAGES]?.let { JSONArray.parseArray(it, String::class.java) } ?: emptyList()
+    }
+
+    suspend fun saveAuthCode(context: Context, authCode: String){
+        context.dataStore.edit { prefs ->
+            prefs[KEY_AUTH_CODE] = authCode
+        }
+    }
+
+    suspend fun loadAuthCode(context: Context): String{
+        val prefs = context.dataStore.data.first()
+        return prefs[KEY_AUTH_CODE] ?: ""
     }
 
 }

@@ -17,6 +17,7 @@ fun MyAppNavHost(){
 
     smsViewModel.loadNumbersFromStorage()
     smsViewModel.loadMessagesFromStorage()
+    smsViewModel.loadAuthCodeFromStorage()
 
     NavHost(navController, startDestination = "home"){
         composable("home") {
