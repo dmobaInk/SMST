@@ -140,17 +140,13 @@ class SmsViewModel(application: Application): AndroidViewModel(application) {
                 .post(body)
                 .build()
 
-            Log.i("TAG", "verifyAuthCode: $jsonStr}")
-
             val response = client.newCall(request).execute()
 
             if (response.isSuccessful){
                 val responseBody = response.body?.string()
-                Log.i("TAG", "verifyAuthCode: $responseBody")
                 val result = JSONObject.parseObject(responseBody ?: "{}")
                 result.getBooleanValue("success")
             }else{
-                Log.i("request", "verifyAuthCode: ${response.code}")
                 false
             }
         }catch (e: Exception){
